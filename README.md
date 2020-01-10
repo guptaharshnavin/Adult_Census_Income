@@ -17,3 +17,10 @@ The **Adult Census Income Dataset** contains the following features :
 12. **Capital-Loss**  
 13. **Hours-Per-Week** : Stores the number of hours the individual works in a week.  
 14. **Native-Country** : Stores the country to which the individual natively belongs.  
+
+This repository contains :  
+1. **Adult_Census_Income_Report.pdf** : Report Of the Adult_Census_Income project in PDF Format.  
+2. **Adult_Census_Income_Report.rmd** : Report Of the Adult_Census_Income project in RMD Format.  
+3. **Adult_Census_Income_Code.R** : R Script for Adult_Census_Income Project.  
+4. **train_set.csv** : Data file used for training the ML Models.  
+5. **test_set.csv** : Data file used for testing the ML Models.  
