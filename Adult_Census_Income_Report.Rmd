@@ -1,0 +1,482 @@
+---
+title: "Adult Census Income"
+author: "Harsh Navin Gupta"
+date: "10 January 2020"
+output: pdf_document
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dataset Analysis
+The **Adult Census Income Dataset**, contains features that are being used to predict whether a person, earns >50K or <=50K.  
+The dataset, contains an observation for every individual person, and the feature to be predicted is the *income*, which is composed of two values : *<=50K, >50K*.  
+The **Adult Census Income Dataset** contains the following features :  
+1. **Age** : Stores the age of the individual.  
+2. **Workclass** : Stores the type of employment of the individual, whether he/she is a federal emplyee, private employee, or has his/her own buisness.  
+3. **fnlwgt** : Stores the sampling weight.  
+4. **Education** : Stores the highest degree of education, held by the individual.  
+5. **Education-Num** : Stores the number of years of education completed by the individual.  
+6. **Marital-Status** : Stores the marital status of the individual, whether they are married, divorced,etc.  
+7. **Occupation** : Stores a short descriptor about the type of job of the individual.  
+8. **Relationship** : Stores the relationship which the individual holds, if he/she is a part of a family.  
+9. **Race** : Stores the race of the individual.  
+10. **Sex** : Stores the sex of an individual.  
+11. **Capital-Gain**  
+12. **Capital-Loss**  
+13. **Hours-Per-Week** : Stores the number of hours the individual works in a week.  
+14. **Native-Country** : Stores the country to which the individual natively belongs.  
+
+## Dataset Download
+The dataset consists of two files, that have to be downloaded.  
+1. **adult.data** : This is a CSV file, that contains the training data.  
+2. **adult.test** : This is a CSV file, that contains the testing data.  
+
+The link to download the **adult.data** file is :  
+<https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data>    
+
+The link to download the **adult.test** file is :  
+<https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.test>    
+
+First, we check for the library that are required, and load the required libraries.    
+
+```{r lib_check, warning=FALSE}
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(ggthemes)) install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+```  
+
+Now, we create a vector of column names, for the data frames to be used.  
+
+```{r col_names}
+col_names <- c("age","workclass","fnlwgt","education",
+               "education_num","marriage","occupation",
+               "relationship","race","sex","capital-gain",
+               "capital-loss","hours",
+               "country","income")
+```  
+
+Now, we first download the file **adult.data** and create our *training set*.  
+
+```{r train_down}
+#Link To Download adult.data
+train_link <- "https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data" 
+train_set <- read_csv(train_link,col_names = FALSE)
+train_set <- setNames(train_set,col_names)
+head(train_set)
+```  
+
+Now, we proceed to download the file **adult.test** and create our *testing set*.  
+```{r test_down}
+#Link To Download adult.test
+test_link <- "https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.test"
+test_set <- read_csv(test_link,col_names = FALSE,skip = 1)
+test_set <- setNames(test_set,col_names)
+head(test_set)
+```  
+
+## Data Preprocessing  
+The columns of the dataset, *workclass, occupation, and native-country*, contain unknown values.  
+
+First, we discard all observations with unknown values *(represented by ?)*, from the training set.  
+
+```{r train_unknown}
+train_set <- train_set %>% 
+  filter(workclass != "?") %>%
+  filter(occupation != "?") %>%
+  filter(country != "?")
+```  
+
+Next, we discard all observations with unknown values *(represented by ?)*, from the testing set.  
+
+```{r test_unknown}
+test_set <- test_set %>% 
+  filter(workclass != "?") %>%
+  filter(occupation != "?") %>%
+  filter(country != "?")
+```  
+
+First, we calculate the *Average Weekly Working Hours* of all the individuals.  
+
+```{r mean_work}
+mean_hours <- mean(train_set$hours)
+```  
+
+Now create a new column named *work_hour_group*, which can have anyone of two values :  
+1. **Lower** : If the works hours per week of the individual are lower than the average weekly work hours.  
+2. **Higher** : If the works hours per week of the individual are higher than the average weekly work hours.  
+
+We initially make the changes to *Training Set*.  
+
+```{r train_work}
+train_set <- train_set %>%
+  mutate(work_hour_group = ifelse(hours < mean_hours,"Lower","Higher"))
+```  
+
+Then, we make the changes to the *Testing Set*.  
+
+```{r test_work}
+test_set <- test_set %>%
+  mutate(work_hour_group = ifelse(hours < mean_hours,"Lower","Higher"))
+```  
+
+Next, we categorise the countries in the dataset, as *Developed Countries (D)* or *Under Development Countries*.  
+The following countries are categorised as *Developed Countries* :  
+* Germany  
+* England  
+* France  
+* Japan  
+* Canada  
+* United-States  
+* Ireland  
+* Italy  
+The remaining countries are classified as *Under Development Countries (UD)*.  
+
+```{r dev_c}
+#Categorising Countries As Developed & Under Development
+dc <- c("Germany","England","France","Japan",
+        "Canada","United-States","Ireland","Italy")
+```  
+
+Initially we make changes to the *Training Set*.  
+
+```{r train_cntry}
+train_set <- train_set %>% 
+  mutate(country_type = ifelse(country %in% dc,"D","UD"))
+```  
+
+Then, we make changes to the *Testing Set*.  
+
+```{r test_cntry}
+test_set <- test_set %>% 
+  mutate(country_type = ifelse(country %in% dc,"D","UD"))
+```  
+
+For the purpose of ease of training ML Models on the training set, we add a new column *y* to both training and testing sets, which contains the following values :  
+1. **0** : If the individual income is equal to <=50K  
+2. **1** : If the individual income is equal to >50K  
+
+Initially, we make changes to the *Training Set*.  
+
+```{r train_y}
+#Creating New Column y
+train_set <- train_set %>% mutate(y = ifelse(income == "<=50K",0,1))
+train_set <- train_set %>% mutate(y = factor(y))
+```  
+
+Then we make changes to the *Testing Set*.  
+
+```{r test_y}
+#Creating New Column y
+test_set <- test_set %>% mutate(y = ifelse(income == "<=50K.",0,1))
+test_set <- test_set %>% mutate(y = factor(y))
+```  
+
+## Exploratory Data Analysis  
+
+```{r total_ppl}
+#Total People In The Training Set
+nrow(train_set)
+```  
+
+```{r total_ctry}
+#Total Countries In The Training Set
+n_distinct(train_set$country)
+```  
+
+```{r total_sex}
+#Total Male & Females In The Training Set
+train_set %>% group_by(sex) %>% 
+  summarise(count = n()) %>% knitr::kable()
+```  
+
+### Income Over Sex  
+Here, we visualise the distribution of the income, over Males & Females, which are present in the training set.
+
+```{r in_sx}
+train_set %>% group_by(sex,income) %>% 
+  summarise(count = n()) %>% knitr::kable()
+```
+
+```{r in_sx_two}
+train_set %>% group_by(sex,income) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(income,count,fill = sex)) + 
+  geom_bar(stat = "identity",position = position_dodge2()) + 
+  xlab("Sex") + ylab("Count") + 
+  theme_gdocs() + ggtitle("Income Over Sex")
+```  
+
+Here, it is observed that, the proportion of people earning <=50K is greater than people earning >50K for both the genders.  
+It can also be clearly observed that total number of Males are greater than the total number of Females.  
+
+### Income Over Different Races
+Here, we analyse the distribution of the income, among individuals belonging to different races.  
+
+```{r in_race}
+train_set %>% group_by(race,income) %>% 
+  summarise(count = n()) %>% knitr::kable()
+```  
+
+```{r in_race_two}
+train_set %>% group_by(race,income) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(income,count,fill = race)) + 
+  geom_bar(stat = "identity",position = position_dodge2()) + 
+  theme_gdocs() + 
+  xlab("Income") + ylab("Count") + 
+  ggtitle("Income Over Different Races")
+```  
+
+Here, it can clearly observed that the dataset is dominated by people belonging to the *White* race.  
+But, it can be observed in general, that the people with income <=50K are greater in number than people with income >50K, across all the races.  
+
+### Income Over Education  
+Here we analyze the distribution of the income, in comparison to the highest degree of education held by an individual.  
+
+```{r in_ed}
+train_set %>% group_by(education,income) %>% 
+  summarise(count = n()) %>% knitr::kable()
+```  
+
+```{r in_ed_two}
+train_set %>% group_by(education,income) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(reorder(education,count),count,fill = income)) + 
+  geom_bar(stat = "identity",position = position_dodge2()) + 
+  coord_flip() + 
+  theme_gdocs() + 
+  xlab("Education") + ylab("Count") + 
+  ggtitle("Income Over Education")
+```  
+
+Here it can be clearly observed, that the people who hold Master's degree, or a Doctrate, or have attended Prof-School, have higher proportion of them, earning >50K, in comparison to other degrees, where the proportion of people earning, <=50K is greater.  
+
+It can also be observed that most people, in the dataset, are *High School Graduates**.  
+
+### Income Over Different Occupations  
+Here we analyse the distribution of incomes of the individuals in the database, on the basis of their occupation.  
+
+```{r in_occ}
+train_set %>% group_by(occupation,income) %>% 
+  summarise(count = n()) %>% knitr::kable()
+```  
+
+```{r in_occ_two}
+train_set %>% group_by(occupation,income) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(reorder(occupation,count),count,fill = income)) +
+  geom_bar(stat = "identity",position = position_dodge2()) + 
+  coord_flip() + 
+  ggtitle("Income Over Different Occupations") + 
+  xlab("Occupation") + ylab("Count") + theme_gdocs()
+```  
+
+Here, in general, it is observed the people earning <=50K are greater than the number of people earning >50K.  
+However, it can also be seen that occupations such as *Prof-speciality* and *Exec-managerial*, usually requiring a *Master's Degree/ Doctrate*, have a comparitively little difference in the number of people earning <=50K & >50K.  
+This observation, also acts as a supporter to the conclusion drawn using the Income Over Education visualisation.  
+
+### Income Over Hours Per Week  
+In this section, we analyse the income distribution, for the people who work less than the average hours per week, and more than the average hours per week.  
+We also analyse the Hours Per Week, with respect to the Gender of the individual, to determine, whether there is difference in the trend, if considered on a gender basis.  
+
+```{r in_wh}
+train_set %>% group_by(work_hour_group,income) %>% 
+  summarise(count = n()) %>% knitr::kable()
+```  
+
+```{r in_wh_two}
+train_set %>% group_by(work_hour_group,income) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(work_hour_group,count,fill = income)) + 
+  geom_bar(stat = "identity",position = position_dodge2()) + 
+  xlab("Work Hour Group") + 
+  ylab("Count") + 
+  ggtitle("Income Over Work Hour Group") + 
+  theme_gdocs()
+```  
+
+It can be clearly observed that for the people who work *Greater than the Average Hours Per Week*, the proportion of people earning <=50K, still remains larger, than the people earning >50K.  
+However, it can also be seen that for people working *Greater than the Average Hours Per Week*, the difference in numbers is very small, when compared to the people working *Less Than The Average Hours Per Week*.  
+
+Now, we compare this trend, by also considering, the gender of the individuals.  
+```{r in_wh_three}
+train_set %>% group_by(work_hour_group,income,sex) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(work_hour_group,count,fill = income)) + 
+  geom_bar(stat = "identity",position = position_dodge2()) + 
+  xlab("Work Hour Group") + 
+  ylab("Count") + 
+  ggtitle("Income Over Work Hour Group & Sex") + 
+  theme_gdocs() + facet_grid(.~sex)
+```  
+
+It can be seen that the *Gender* does not act as a *Bias*, in anyway, and the trend observed earlier, still remains true.  
+
+### Income Over Maritial Status  
+Here, we analyse the distribution of income, based on the individual's maritial status.  
+
+```{r in_mr}
+train_set %>% group_by(marriage,income) %>% 
+  summarise(count = n()) %>% knitr::kable()
+```  
+
+```{r in_mr_two}
+train_set %>% group_by(marriage,income) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(marriage,count,fill = income)) + 
+  geom_bar(stat = "identity",position = position_dodge2()) + 
+  xlab("Maritial Status") + 
+  ylab("Count") + 
+  ggtitle("Income Over Maritial Status") + 
+  theme_gdocs() + coord_flip()
+```  
+
+In the visualisaton, it can be clearly observed, that the chances of a person earning <=50K of not being married, are higher than that of being married.  
+The highest number of people earning <=50K, have never married.  
+
+### Income Over Relationship  
+Here, we verify the observations that have been observed in the previous visulation.  
+
+```{r in_r}
+train_set %>% group_by(relationship,income) %>% 
+  summarise(count = n()) %>% knitr::kable()
+```  
+
+```{r in_r_two}
+train_set %>% group_by(relationship,income) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(relationship,count,fill = income)) + 
+  geom_bar(stat = "identity",position = position_dodge2()) + 
+  xlab("Relationship") + 
+  ylab("Count") + 
+  ggtitle("Income Over Relationship") + 
+  theme_gdocs()
+```  
+
+It can be clearly observed that the highest number of people earning <=50K, are current not in a family, confirming our previous conclusion, *Person earning <=50K, has a higher probability of being never married*.  
+
+### Income Over Country Type
+Here, we analyse whether the distribution of incomes, difference in *Developed vs Under Development Countries*. 
+
+```{r in_cn}
+train_set %>% group_by(country_type,income) %>%
+  summarise(count = n()) %>% 
+  ggplot(aes(country_type,count,fill = income)) +
+  geom_bar(stat = "identity",position = position_dodge2()) +
+  ggtitle("Income Over Country Type") +
+  xlab("Country Type") + 
+  ylab("Count") + theme_gdocs()
+```  
+Here, it can clearly be seen, that most of the individuals of the dataset, are native to a developed country.  
+Secondly, be it developed or under development country, the number of people earning <=50K are significantly higher than number of people earning >50K.  
+
+## Model Fitting  
+Based on the *Exploratory Data Analysis*, we will use only the following columns for the training of the *ML Models*.  
+1. **sex**  
+2. **age**  
+3. **occupation**  
+4. **education**  
+5. **relationship**  
+6. **race**  
+7. **marriage**  
+8. **hours**  
+9. **country**  
+10. **y**  
+
+```{r sel_col}
+selected_features <- c("sex","age","occupation",
+                       "education","relationship","race",
+                       "marriage","hours","country","y")
+```  
+
+```{r t_t_col}
+#Selecting Columns From Training Set
+train_set <- train_set %>% select(selected_features)
+
+#Selecting Columns From Testing Set
+test_set <- test_set %>% select(selected_features)
+```  
+
+### Using Logistic Regression  
+First, we define *K Fold Cross Validation*. Here, we define, that only *10 Times (K = 10)*, will be performed, and the validation set *will be 10% of the training set (p = 0.9)*. 
+
+```{r k_fold}
+control <- trainControl(method = "cv",number = 10,p = 0.9)
+```  
+
+Now, we fit the *Logistic Regression Model*, to the training set, using the train() function of the caret package.  
+
+```{r lg_fit, message=FALSE, warning=FALSE}
+lga_fit <- train(y ~ .,data = train_set,method = "glm",trControl = control)
+```  
+
+Now, we predict the income for the *Testing Set* by making of the predict() function.  
+
+```{r lg_pred}
+y_hat <- predict(lga_fit,test_set)
+```  
+
+We can analyse the performance of the Model, by making use of the Confusion Matrix.  
+
+```{r lg_cm}
+confusionMatrix(y_hat,test_set$y)
+```  
+
+The *Accuracy* for the *Logistic Regression Model*.  
+```{r lg_acc}
+confusionMatrix(y_hat,test_set$y)$overall[1]
+```  
+
+### Using Classifier Tree  
+Here, we make of *tuneGrid* argument, to fit the Classifier tree, for multiple *cp (Complexity Parameter)* values, and fit the model using the *train()* function of the caret package.  
+
+```{r ct_fit}
+tree_fit <- train(y ~ .,data = train_set,
+                  method="rpart",
+                  tuneGrid=data.frame(cp=seq(0,0.05,0.002)))
+```  
+
+Now, we plot the *cp (Complexity Parameter) VS Accuracy*.  
+
+```{r ct_plot}
+ggplot(tree_fit,highlight = TRUE) + theme_gdocs()
+```  
+
+The best value of *cp* is :  
+
+```{r ct_cp}
+tree_fit$bestTune
+```  
+
+Now, we plot the *Best Fit Classifier Tree Model*.  
+
+```{r ct_plot_best}
+plot(tree_fit$finalModel,margin = 0.01)
+text(tree_fit$finalModel,cex = 0.6)
+```  
+
+Now, we predict the income for the *Testing Set* by making of the predict() function.  
+
+```{r ct_pred}
+y_hat <- predict(tree_fit,test_set)
+```  
+
+We can analyse the performance of the Model, by making use of the Confusion Matrix.  
+
+```{r ct_cm}
+confusionMatrix(y_hat,test_set$y)
+```  
+
+The *Accuracy* for the *Classifier Tree Model*.  
+```{r ct_acc}
+confusionMatrix(y_hat,test_set$y)$overall[1]
+```  
+
+## Conclusion  
+For the *Adult Census Income* dataset, both the *Logistic Regression & Classifier Tree* models, perform equally good, by making use of *Accuracy* as the comparison parameter, and hence any of the model can be used for predicting the income of an individual.  
+
+## Github Link  
+<https://github.com/guptaharshnavin/Adult_Census_Income>  
